@@ -22,7 +22,7 @@ public class CatTransporter {
 	
 	private static final String TAG = "CatTransporter";
 	
-	public static Vector<String> beamCats(String url, String currentVersion)
+	public static Vector<String> getCatList(String url, String currentVersion)
 	{
 	    HttpClient httpClient = new DefaultHttpClient();
 	    HttpGet httpGet = new HttpGet(url); 
@@ -34,22 +34,30 @@ public class CatTransporter {
 	        HttpEntity entity = response.getEntity();
 	        Header eTag = response.getFirstHeader("ETag");
 	        
-	        if(currentVersion.equals(eTag.getValue())) {
+	        if(eTag != null && currentVersion.equals(eTag.getValue())) {
 	        	// no new cats!
+	        	return null;
+	        } else if(eTag == null && currentVersion.length() > 0) {
+	        	// we've got some version so just use that
 	        	return null;
 	        }
 	        
 	        if (entity != null) {
 	            InputStream instream = entity.getContent();
 	            Vector<String> cats = convertStreamToCats(instream);
-	            cats.add(0, eTag.getValue()); // put the version in the first element
+	            String versionString = "1";
+	            if(eTag != null) {
+	            	versionString = eTag.getValue();
+	            }
+	            cats.add(0, versionString); // put the version in the first element
 	            instream.close();
 	            return cats;
 	        } else {
 	        	return null;
 	        }
 	    } catch (Exception e) {
-	    	Log.e(TAG, "Exception when beaming cats! Oh noes!: " + e.getLocalizedMessage());
+	    	Log.e(TAG, "Exception when beaming cats! Oh noes!: ");
+	    	e.printStackTrace();
 	    	return null;
 	    }
 	}
@@ -88,7 +96,11 @@ public class CatTransporter {
 	        
 	        if(entity != null) {
 	        	String catName = Uri.parse(catUrl).getLastPathSegment();
-	        	FileOutputStream fos = new FileOutputStream(new File(catStore.getAbsolutePath() + catName));
+	        	File catFile = new File(catStore.getAbsolutePath() + "/" + catName);
+	        	if(!catFile.exists()) {
+	        		catFile.createNewFile();
+	        	}
+	        	FileOutputStream fos = new FileOutputStream(catFile);
 	        	InputStream is = entity.getContent();
 	        	
 	        	byte[] buffer = new byte[4096];
@@ -99,7 +111,7 @@ public class CatTransporter {
 	            fos.close();
 	        }
 	    } catch(Exception e) {
-	    	
+	    	Log.e(TAG, "Exception when adopting cat: " + e.getLocalizedMessage());
 	    }
 	}
 }

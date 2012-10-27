@@ -16,7 +16,7 @@ public class CatNapper {
 	private final Runnable catBeamer = new Runnable() {
 		public void run() {
 			// get cats
-			Vector<String> cats = CatTransporter.beamCats("http://catoverflow.com/db/gifs.catdb", CatNapper.this.currentVersion);
+			Vector<String> cats = CatTransporter.getCatList("http://catoverflow.com/db/gifs.catdb", CatNapper.this.currentVersion);
 			listener.OnComplete(cats);
 		}
 	};
