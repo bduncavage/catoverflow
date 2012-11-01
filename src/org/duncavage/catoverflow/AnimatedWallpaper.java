@@ -13,10 +13,6 @@ public abstract class AnimatedWallpaper extends WallpaperService {
 		private Runnable iterator = new Runnable() {
 			@Override
 			public void run() {
-				synchronized(this) {
-					if(!mVisible) return;
-				}
-				iterate();
 				drawFrame();
 			}
 		};
@@ -32,7 +28,6 @@ public abstract class AnimatedWallpaper extends WallpaperService {
 		public void onVisibilityChanged(boolean visible) {
 			mVisible = visible;
 			if (visible) {
-				iterate();
 				drawFrame();
 			} else {
 				// stop the animation
@@ -43,23 +38,22 @@ public abstract class AnimatedWallpaper extends WallpaperService {
 		@Override
 		public void onSurfaceChanged(SurfaceHolder holder, int format,
 				int width, int height) {
-			iterate();
+			super.onSurfaceChanged(holder, format, width, height);
 			drawFrame();
 		}
 
 		@Override
 		public void onSurfaceDestroyed(SurfaceHolder holder) {
+			super.onSurfaceDestroyed(holder);
 			mVisible = false;
 			// stop the animation
 			handler.removeCallbacks(iterator);
-			super.onSurfaceDestroyed(holder);
 		}
 
 		@Override
 		public void onOffsetsChanged(float xOffset, float yOffset,
 				float xOffsetStep, float yOffsetStep, int xPixelOffset,
 				int yPixelOffset) {
-			iterate();
 			drawFrame();
 		}
 
@@ -69,7 +63,7 @@ public abstract class AnimatedWallpaper extends WallpaperService {
 			// Reschedule the next redraw in 40ms
 			handler.removeCallbacks(iterator);
 			if (mVisible) {
-				handler.postDelayed(iterator, 1000 / 100);
+				handler.postDelayed(iterator, 1000 / 25);
 			}
 		}
 	}
