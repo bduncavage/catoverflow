@@ -35,6 +35,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	
 	private CatOverflowEngine engine;
 	private CatNapper cat_napper = new CatNapper();
+	private CatAnimator catAnimator;
 	
 	private Vector<String> recentlyNappedCats;
 	
@@ -91,8 +92,10 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	@Override
 	public Engine onCreateEngine() {
 		engine = new CatOverflowEngine();
+		catAnimator = new CatAnimator(engine);
 		if (transportComplete) {
 			engine.catTransportComplete();
+			catAnimator.startAnimating();
 		}
 		return engine;
 	}
@@ -158,11 +161,13 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		});
 	}
 
-	private class CatOverflowEngine extends AnimationEngine {
+	public class CatOverflowEngine extends AnimationEngine {
 		
 		private int offset_x;
 		private int height;
 		private int width;
+		private int upperBoundIndex;
+		private int lastAnimatedIndex = -1;
 		
 		private File[] cats;
 
@@ -271,7 +276,10 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					
 					for(int i = 0; i < cats.length; i++) {
 						view = catGifViews.get(i);
-						c.drawBitmap(view.getBitmap(), currentX, currentY, null);
+						view.setDrawAtX(currentX);
+						view.setDrawAtY(currentY);
+						view.draw(c);
+
 						currentX += view.getBitmapWidth();
 						rowMaxHeight = Math.max(view.getBitmapHeight(), rowMaxHeight);
 						if(i + 1 < cats.length) {
@@ -281,6 +289,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 								currentY += rowMaxHeight;
 								rowMaxHeight = 0;
 								if(currentY > this.height) {
+									upperBoundIndex = i;
 									break;
 								}
 							}
@@ -298,6 +307,20 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		@Override
 		public void onTouchEvent(MotionEvent event) {
 			super.onTouchEvent(event);
+			//catGifViews.get(0).play();
+		}
+
+		public void animateRandomCat() {
+			synchronized(monitor) {
+				if (upperBoundIndex > 0) {
+					int randIndex = (int) (Math.random() * upperBoundIndex);
+					if (lastAnimatedIndex > -1) {
+						catGifViews.get(lastAnimatedIndex).stop();
+					}
+					catGifViews.get(randIndex).play();
+					lastAnimatedIndex = randIndex;
+				}
+			}
 		}
 	}
 	
