@@ -13,7 +13,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.graphics.Canvas;
-import android.graphics.Rect;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
@@ -253,24 +255,31 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			try {
 				c = holder.lockCanvas();
 				if (c != null) {
-					int currentX = this.offset_x;
+					// Clear the canvas
+					// Totally obvious way to do that right?
+					Paint paint = new Paint();
+					paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+					c.drawPaint(paint);
+					paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC));
+
+					int currentX = offset_x;
 					int currentY = 0;
+					int rowMaxHeight = 0;
 					
 					GifView view;
 					GifView nextView;
 					
-					catGifViews.get(0).draw(c);
 					for(int i = 0; i < cats.length; i++) {
 						view = catGifViews.get(i);
-						view.setDrawAtX(currentX);
-						view.setDrawAtY(currentY);
-						view.draw(c);
+						c.drawBitmap(view.getBitmap(), currentX, currentY, null);
 						currentX += view.getBitmapWidth();
+						rowMaxHeight = Math.max(view.getBitmapHeight(), rowMaxHeight);
 						if(i + 1 < cats.length) {
 							nextView = catGifViews.get(i + 1);
-							if(nextView.getBitmapWidth() + currentX > this.width) {
-								currentX = this.offset_x;
-								currentY += view.getBitmapHeight();
+							if(nextView.getBitmapWidth() + currentX > this.width - Math.abs(offset_x)) {
+								currentX = offset_x;
+								currentY += rowMaxHeight;
+								rowMaxHeight = 0;
 								if(currentY > this.height) {
 									break;
 								}
