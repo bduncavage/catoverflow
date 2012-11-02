@@ -241,12 +241,14 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		@Override
 		protected void drawFrame() {
 			boolean shouldDraw = true;
+			ArrayList<GifView> localGifViews = null;
 			synchronized(monitor) {
 				if(catGifViews == null) {
 					shouldDraw = false;
 				} else if (catGifViews.size() != cats.length) {
 					shouldDraw = false;
 				}
+				localGifViews = catGifViews;
 			}
 			
 			if(!shouldDraw) {
@@ -275,7 +277,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					GifView nextView;
 					
 					for(int i = 0; i < cats.length; i++) {
-						view = catGifViews.get(i);
+						view = localGifViews.get(i);
 						view.setDrawAtX(currentX);
 						view.setDrawAtY(currentY);
 						view.draw(c);
@@ -283,7 +285,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						currentX += view.getBitmapWidth();
 						rowMaxHeight = Math.max(view.getBitmapHeight(), rowMaxHeight);
 						if(i + 1 < cats.length) {
-							nextView = catGifViews.get(i + 1);
+							nextView = localGifViews.get(i + 1);
 							if(nextView.getBitmapWidth() + currentX > this.width - Math.abs(offset_x)) {
 								currentX = offset_x;
 								currentY += rowMaxHeight;
@@ -315,12 +317,23 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				if (upperBoundIndex > 0) {
 					int randIndex = (int) (Math.random() * upperBoundIndex);
 					if (lastAnimatedIndex > -1) {
-						catGifViews.get(lastAnimatedIndex).stop();
+						GifView view = catGifViews.get(lastAnimatedIndex);
+						view.stop();
+						view.release();
 					}
+					Log.i(TAG, "Will animate cat at index: " + randIndex);
 					catGifViews.get(randIndex).play();
 					lastAnimatedIndex = randIndex;
 				}
 			}
+		}
+
+		public void randomizeCats() {
+			ArrayList<GifView> localCats = null;
+			synchronized(monitor) {
+				localCats = (ArrayList<GifView>) catGifViews.clone();
+			}
+			// shuffle the local cats
 		}
 	}
 	
