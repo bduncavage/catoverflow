@@ -169,10 +169,14 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		private int upperBoundIndex;
 		private int lastAnimatedIndex = -1;
 		
-		private File[] cats;
+		private String[] cats;
 
 		private ArrayList<GifView> catGifViews;
 		private final Object monitor = new Object();
+		
+		Paint mPaint = new Paint();
+		PorterDuffXfermode mPorterDuffClear = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
+		PorterDuffXfermode mPorterDuffSrc = new PorterDuffXfermode(PorterDuff.Mode.SRC);
 		
 		@Override
 		public void onCreate(SurfaceHolder holder) {
@@ -182,8 +186,15 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		
 		public void catTransportComplete()
 		{
-			cats = new File(CatOverflowWallpaper.this.externalDirPath).listFiles();
-			catGifViews = new ArrayList<GifView>(cats.length);
+			File[] files = new File(CatOverflowWallpaper.this.externalDirPath).listFiles();
+			cats = new String[files.length];
+			
+			for(int i = 0; i < files.length; i++) {
+				cats[i] = files[i].getAbsolutePath();
+			}
+			
+			int safeSize = Math.min(10, cats.length);
+			catGifViews = new ArrayList<GifView>(safeSize);
 			
 			final Context context = CatOverflowWallpaper.this;
 			
@@ -191,11 +202,11 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				@Override
 				public void run() {
 					GifView view = null;
-					File catFile = null;
+					String catFile = null;
 					int catCount = 0;
 
 					synchronized(monitor) {
-						catCount = cats.length;
+						catCount = Math.min(10, cats.length);
 					}
 					
 					for(int i = 0; i < catCount; i++) {
@@ -205,7 +216,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 							catFile = cats[i];
 						}
 						
-						view.setGif(catFile.getAbsolutePath());
+						view.setGif(catFile);
 
 						synchronized(monitor) {
 							catGifViews.add(view);
@@ -245,8 +256,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			synchronized(monitor) {
 				if(catGifViews == null) {
 					shouldDraw = false;
-				} else if (catGifViews.size() != cats.length) {
-					shouldDraw = false;
 				}
 				localGifViews = catGifViews;
 			}
@@ -264,10 +273,9 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				if (c != null) {
 					// Clear the canvas
 					// Totally obvious way to do that right?
-					Paint paint = new Paint();
-					paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-					c.drawPaint(paint);
-					paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC));
+					mPaint.setXfermode(mPorterDuffClear);
+					c.drawPaint(mPaint);
+					mPaint.setXfermode(mPorterDuffSrc);
 
 					int currentX = offset_x;
 					int currentY = 0;
@@ -276,7 +284,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					GifView view;
 					GifView nextView;
 					
-					for(int i = 0; i < cats.length; i++) {
+					for(int i = 0; i < localGifViews.size(); i++) {
 						view = localGifViews.get(i);
 						view.setDrawAtX(currentX);
 						view.setDrawAtY(currentY);
@@ -284,7 +292,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 
 						currentX += view.getBitmapWidth();
 						rowMaxHeight = Math.max(view.getBitmapHeight(), rowMaxHeight);
-						if(i + 1 < cats.length) {
+						if(i + 1 < localGifViews.size()) {
 							nextView = localGifViews.get(i + 1);
 							if(nextView.getBitmapWidth() + currentX > this.width - Math.abs(offset_x)) {
 								currentX = offset_x;
@@ -320,6 +328,9 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						GifView view = catGifViews.get(lastAnimatedIndex);
 						view.stop();
 						view.release();
+						view = new GifView(CatOverflowWallpaper.this);
+						view.setGif(cats[lastAnimatedIndex]);
+						catGifViews.set(lastAnimatedIndex, view);
 					}
 					Log.i(TAG, "Will animate cat at index: " + randIndex);
 					catGifViews.get(randIndex).play();

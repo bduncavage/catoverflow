@@ -150,10 +150,16 @@ public class GifView extends View {
 	@Override
 	protected void onDraw(Canvas canvas) {
 		super.onDraw(canvas);
+		boolean localPlayFlag;
+		GifDecoder localDecoder;
+		synchronized(this) {
+			localPlayFlag = playFlag;
+			localDecoder = decoder;
+		}
 
 		if (decodeStatus == DECODE_STATUS_UNDECODE) {
 			canvas.drawBitmap(bitmap, drawAtX, drawAtY, null);
-			if (playFlag) {
+			if (localPlayFlag) {
 				decode();
 				invalidate();
 			}
@@ -164,20 +170,23 @@ public class GifView extends View {
 			if (imageType == IMAGE_TYPE_STATIC) {
 				canvas.drawBitmap(bitmap, drawAtX, drawAtY, null);
 			} else if (imageType == IMAGE_TYPE_DYNAMIC) {
-				if (playFlag) {
+				if (localPlayFlag && localDecoder != null) {
 					long now = System.currentTimeMillis();
 
-					if (time + decoder.getDelay(index) < now) {
-						time += decoder.getDelay(index);
+					if (time + localDecoder.getDelay(index) < now) {
+						time += localDecoder.getDelay(index);
 						incrementFrameIndex();
 					}
-					Bitmap bitmap = decoder.getFrame(index);
+					Bitmap bitmap = localDecoder.getFrame(index);
 					if (bitmap != null) {
 						canvas.drawBitmap(bitmap, drawAtX, drawAtY, null);
 					}
 					invalidate();
 				} else {
-					Bitmap bitmap = decoder.getFrame(index);
+					if(localDecoder == null) {
+						return;
+					}
+					Bitmap bitmap = localDecoder.getFrame(index);
 					canvas.drawBitmap(bitmap, drawAtX, drawAtY, null);
 				}
 			} else {
