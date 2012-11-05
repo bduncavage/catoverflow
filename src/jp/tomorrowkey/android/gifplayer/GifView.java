@@ -40,7 +40,7 @@ public class GifView extends View {
 	private int resId;
 	private String filePath;
 
-	private boolean playFlag = false;
+	private volatile boolean playFlag = false;
 
 	public GifView(Context context, AttributeSet attrs) {
 		super(context, attrs);
@@ -129,9 +129,14 @@ public class GifView extends View {
 		new Thread() {
 			@Override
 			public void run() {
-				decoder = new GifDecoder();
-				decoder.read(getInputStream());
-				if (decoder.width == 0 || decoder.height == 0) {
+				GifDecoder localDecoder = null;
+				synchronized(this) {
+					decoder = new GifDecoder();
+					localDecoder = decoder;
+				}
+
+				localDecoder.read(getInputStream());
+				if (localDecoder.width == 0 || localDecoder.height == 0) {
 					imageType = IMAGE_TYPE_STATIC;
 				} else {
 					imageType = IMAGE_TYPE_DYNAMIC;
@@ -144,7 +149,12 @@ public class GifView extends View {
 	}
 
 	public void release() {
-		decoder = null;
+		synchronized(this) {
+			if (decoder != null) {
+				decoder.stopDecode();
+				decoder = null;
+			}
+		}
 	}
 
 	@Override

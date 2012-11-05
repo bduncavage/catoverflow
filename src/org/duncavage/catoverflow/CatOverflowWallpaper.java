@@ -8,10 +8,13 @@ import java.util.Vector;
 import jp.tomorrowkey.android.gifplayer.GifView;
 
 import org.duncavage.catoverflow.CatNapper.OnCatNappingCompleteListener;
+import org.duncavage.catoverflow.util.CatUtil;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -22,6 +25,8 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
+import android.widget.ImageView;
+import android.widget.ImageView.ScaleType;
 
 public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private static final String TAG = "CatOverflowWallpaper";
@@ -40,7 +45,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private Vector<String> recentlyNappedCats;
 	
 	private boolean transportComplete;
-	
+
 	@Override
 	public void onCreate() {
 		android.os.Debug.waitForDebugger(); 
@@ -93,9 +98,9 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	public Engine onCreateEngine() {
 		engine = new CatOverflowEngine();
 		catAnimator = new CatAnimator(engine);
+		catAnimator.startAnimating();
 		if (transportComplete) {
 			engine.catTransportComplete();
-			catAnimator.startAnimating();
 		}
 		return engine;
 	}
@@ -177,10 +182,19 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		Paint mPaint = new Paint();
 		PorterDuffXfermode mPorterDuffClear = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
 		PorterDuffXfermode mPorterDuffSrc = new PorterDuffXfermode(PorterDuff.Mode.SRC);
-		
+	
+		private volatile boolean mStopDrawingCats = false;
+
+		private final int MAX_CATS_IN_MEMORY = 15;
+
+		private Bitmap mBackgroundBmp;
+
+		private Handler mMainThreadHandler;
+
 		@Override
 		public void onCreate(SurfaceHolder holder) {
 			super.onCreate(holder);
+			mMainThreadHandler = new Handler();
 			setTouchEventsEnabled(true);
 		}
 		
@@ -193,7 +207,17 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				cats[i] = files[i].getAbsolutePath();
 			}
 			
-			int safeSize = Math.min(10, cats.length);
+			prepareCatViews();
+		}
+
+		private void prepareCatViews() {
+			synchronized(monitor) {
+				mStopDrawingCats = true;
+			}
+
+			CatUtil.knuthShuffle(cats);
+
+			final int safeSize = Math.min(MAX_CATS_IN_MEMORY, cats.length);
 			catGifViews = new ArrayList<GifView>(safeSize);
 			
 			final Context context = CatOverflowWallpaper.this;
@@ -203,13 +227,8 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				public void run() {
 					GifView view = null;
 					String catFile = null;
-					int catCount = 0;
 
-					synchronized(monitor) {
-						catCount = Math.min(10, cats.length);
-					}
-					
-					for(int i = 0; i < catCount; i++) {
+					for(int i = 0; i < safeSize; i++) {
 						view = new GifView(context);
 						
 						synchronized(monitor) {
@@ -222,6 +241,9 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 							catGifViews.add(view);
 						}
 					}
+					synchronized(monitor) {
+						mStopDrawingCats = false;
+					}
 				}
 			}.start();
 		}
@@ -232,7 +254,20 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			this.height = height;
 			if (this.isPreview()) {
 				this.width = width;
+				mStopDrawingCats = true;
+				synchronized(monitor) {
+					mBackgroundBmp = BitmapFactory.decodeResource(getResources(), R.drawable.background);
+					float bh = mBackgroundBmp.getHeight();
+					float bw = mBackgroundBmp.getWidth();
+					float scaledHeight = bh * (width/ bw);
+
+					mBackgroundBmp = Bitmap.createScaledBitmap(mBackgroundBmp, 2 * width, 2 * (int)scaledHeight, true);
+				}
 			} else {
+				synchronized(monitor) {
+					mBackgroundBmp = null;
+				}
+				mStopDrawingCats = false;
 				this.width = 2 * width;
 			}
 			super.onSurfaceChanged(holder, format, width, height);
@@ -254,7 +289,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			boolean shouldDraw = true;
 			ArrayList<GifView> localGifViews = null;
 			synchronized(monitor) {
-				if(catGifViews == null) {
+				if(catGifViews == null && !isPreview()) {
 					shouldDraw = false;
 				}
 				localGifViews = catGifViews;
@@ -271,11 +306,22 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			try {
 				c = holder.lockCanvas();
 				if (c != null) {
-					// Clear the canvas
-					// Totally obvious way to do that right?
-					mPaint.setXfermode(mPorterDuffClear);
-					c.drawPaint(mPaint);
-					mPaint.setXfermode(mPorterDuffSrc);
+					if (mBackgroundBmp != null) {
+						int left = (width / 2) - (mBackgroundBmp.getWidth() / 2);
+						int top = (height / 2) - (mBackgroundBmp.getHeight() / 2);
+						c.drawBitmap(mBackgroundBmp, left, top, null);
+					} else {
+						// Clear the canvas
+						// Totally obvious way to do that right?
+						mPaint.setXfermode(mPorterDuffClear);
+						c.drawPaint(mPaint);
+						mPaint.setXfermode(mPorterDuffSrc);
+					}
+
+					if (mStopDrawingCats || isPreview()) {
+						iterate();
+						return;
+					}
 
 					int currentX = offset_x;
 					int currentY = 0;
@@ -322,16 +368,12 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 
 		public void animateRandomCat() {
 			synchronized(monitor) {
+				if (catGifViews == null || catGifViews.size() < upperBoundIndex) {
+					return;
+				}
 				if (upperBoundIndex > 0) {
-					int randIndex = (int) (Math.random() * upperBoundIndex);
-					if (lastAnimatedIndex > -1) {
-						GifView view = catGifViews.get(lastAnimatedIndex);
-						view.stop();
-						view.release();
-						view = new GifView(CatOverflowWallpaper.this);
-						view.setGif(cats[lastAnimatedIndex]);
-						catGifViews.set(lastAnimatedIndex, view);
-					}
+					int randIndex = (int) (Math.random() * (upperBoundIndex + 1));
+					resetAnimatedCat();
 					Log.i(TAG, "Will animate cat at index: " + randIndex);
 					catGifViews.get(randIndex).play();
 					lastAnimatedIndex = randIndex;
@@ -339,12 +381,23 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			}
 		}
 
-		public void randomizeCats() {
-			ArrayList<GifView> localCats = null;
+		public void resetAnimatedCat() {
 			synchronized(monitor) {
-				localCats = (ArrayList<GifView>) catGifViews.clone();
+				if (lastAnimatedIndex > -1) {
+					GifView view = catGifViews.get(lastAnimatedIndex);
+					view.stop();
+					view.release();
+					view = new GifView(CatOverflowWallpaper.this);
+					view.setGif(cats[lastAnimatedIndex]);
+					catGifViews.set(lastAnimatedIndex, view);
+					lastAnimatedIndex = -1;
+				}
 			}
-			// shuffle the local cats
+		}
+
+		public void randomizeCats() {
+			resetAnimatedCat();
+			prepareCatViews();
 		}
 	}
 	

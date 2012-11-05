@@ -19,6 +19,15 @@ public class GifDecoder {
 	 * File read status: Unable to open source.
 	 */
 	public static final int STATUS_OPEN_ERROR = 2;
+	/**
+	 * Added by Brett Duncavage
+	 * Read status interrupted/stopped
+	 * This is needed in order to force the decoder to bail during a decode.
+	 * The original problem was if a caller calls release() on a GifView while its decoder is decoding
+	 * it will continue to decode, meanwhile the GifView no longer has a reference to it.
+	 */
+	public static final int STATUS_INTERRUPTED = 3;
+
 	/** max decoder pixel stack size */
 	protected static final int MAX_STACK_SIZE = 4096;
 	protected InputStream in;
@@ -237,6 +246,14 @@ public class GifDecoder {
 	}
 
 	/**
+	 * Forces and in-progress decode to halt.
+	 */
+	public void stopDecode() {
+		synchronized(this) {
+			status = STATUS_INTERRUPTED;
+		}
+	}
+	/**
 	 * Decodes LZW image data into pixel array. Adapted from John Cristy's BitmapMagick.
 	 */
 	protected void decodeBitmapData() {
@@ -347,7 +364,9 @@ public class GifDecoder {
 	 * Returns true if an error was encountered during reading/decoding
 	 */
 	protected boolean err() {
-		return status != STATUS_OK;
+		synchronized(this) {
+			return status != STATUS_OK;
+		}
 	}
 
 	/**

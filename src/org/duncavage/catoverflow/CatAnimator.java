@@ -9,6 +9,10 @@ public class CatAnimator {
 	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 	private ScheduledFuture catAnimatorHandle;
 	private CatOverflowWallpaper.CatOverflowEngine engine;
+	private int randomizeInterval = 5;
+	private int currentInterval = 0;
+
+	private final int MIN_TIME_BETWEEN_ANIMATION = 25;
 	
 	public CatAnimator(CatOverflowWallpaper.CatOverflowEngine engine) {
 		this.engine = engine;
@@ -16,14 +20,20 @@ public class CatAnimator {
 	
 	private final Runnable catAnimatorRunnable = new Runnable() {
 		public void run() {
-			// choose a random cat to animate
-			engine.animateRandomCat();
+			if(currentInterval == randomizeInterval) {
+				engine.randomizeCats();
+				currentInterval = 0;
+			} else {
+				currentInterval++;
+				// choose a random cat to animate
+				engine.animateRandomCat();
+			}
 		}
 	};
 	
 	public void startAnimating()
 	{
-		catAnimatorHandle = scheduler.scheduleAtFixedRate(catAnimatorRunnable, 0, 20, TimeUnit.SECONDS);
+		catAnimatorHandle = scheduler.scheduleAtFixedRate(catAnimatorRunnable, 0, MIN_TIME_BETWEEN_ANIMATION, TimeUnit.SECONDS);
 	}
 	
 	public void stopAnimating() {
