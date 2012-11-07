@@ -16,7 +16,9 @@ import android.content.SharedPreferences.Editor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Paint.Style;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.net.Uri;
@@ -25,8 +27,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
-import android.widget.ImageView;
-import android.widget.ImageView.ScaleType;
 
 public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private static final String TAG = "CatOverflowWallpaper";
@@ -45,6 +45,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private Vector<String> recentlyNappedCats;
 	
 	private boolean transportComplete;
+	private final int CAT_PROCESSING_BATCH_SIZE = 10;
 
 	@Override
 	public void onCreate() {
@@ -62,18 +63,26 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	    		Log.e(TAG, "Exception creating storage dir: " + e.getLocalizedMessage());
 	    	}
 	    }
-	    
+
 		cat_napper.startNappingCats(catVersion,  new OnCatNappingCompleteListener() {
-			public void OnComplete(Vector<String> cats) {
+			public void OnComplete(final Vector<String> cats) {
 				recentlyNappedCats = cats;
 				if(cats != null) {
-					Editor editor = settings.edit();
-					editor.putString(CAT_VERSION_KEY, cats.elementAt(0));
-					//editor.putString(CAT_VERSION_KEY, "");
-					editor.commit();
 					processCats(new OnNewCatsAdoptedListener() {
 						@Override
 						public void OnAdpoptionComplete() {
+							// now that we've gotten all the cats
+							// store this version
+							Editor editor = settings.edit();
+							editor.putString(CAT_VERSION_KEY, cats.elementAt(0));
+							editor.commit();
+							engine.catTransportComplete();
+							transportComplete = true;
+						}
+
+						@Override
+						public void OnBatchComplete() {
+							// we've got some cats so we can start to draw them
 							engine.catTransportComplete();
 							transportComplete = true;
 						}
@@ -155,6 +164,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private void adpotCats(Vector<String> catsToAdopt, final OnNewCatsAdoptedListener listener) {
 		Enumeration<String> enumeratedCats = catsToAdopt.elements();
 		File catStore = new File(externalDirPath);
+
 		while(enumeratedCats.hasMoreElements()) {
 			CatTransporter.adoptCat(enumeratedCats.nextElement(), catStore);
 		}
@@ -179,15 +189,18 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		private ArrayList<GifView> catGifViews;
 		private final Object monitor = new Object();
 		
-		Paint mPaint = new Paint();
-		PorterDuffXfermode mPorterDuffClear = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
-		PorterDuffXfermode mPorterDuffSrc = new PorterDuffXfermode(PorterDuff.Mode.SRC);
-	
+		private Paint mPaint = new Paint();
+		private PorterDuffXfermode mPorterDuffClear = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
+		private PorterDuffXfermode mPorterDuffSrc = new PorterDuffXfermode(PorterDuff.Mode.SRC);
+
+		private Paint mTextPaint = new Paint();
+
 		private volatile boolean mStopDrawingCats = false;
 
 		private final int MAX_CATS_IN_MEMORY = 15;
 
 		private Bitmap mBackgroundBmp;
+		private GifView mLoadingCatView;
 
 		private Handler mMainThreadHandler;
 
@@ -244,6 +257,12 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					synchronized(monitor) {
 						mStopDrawingCats = false;
 					}
+					mMainThreadHandler.post(new Runnable() {
+						@Override
+						public void run() {
+							animateRandomCat();
+						}
+					});
 				}
 			}.start();
 		}
@@ -254,7 +273,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			this.height = height;
 			if (this.isPreview()) {
 				this.width = width;
-				mStopDrawingCats = true;
 				synchronized(monitor) {
 					mBackgroundBmp = BitmapFactory.decodeResource(getResources(), R.drawable.background);
 					float bh = mBackgroundBmp.getHeight();
@@ -267,7 +285,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				synchronized(monitor) {
 					mBackgroundBmp = null;
 				}
-				mStopDrawingCats = false;
 				this.width = 2 * width;
 			}
 			super.onSurfaceChanged(holder, format, width, height);
@@ -286,20 +303,16 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		
 		@Override
 		protected void drawFrame() {
-			boolean shouldDraw = true;
+			boolean isLoadingCats = false;
+
 			ArrayList<GifView> localGifViews = null;
 			synchronized(monitor) {
 				if(catGifViews == null && !isPreview()) {
-					shouldDraw = false;
+					isLoadingCats = true;
 				}
 				localGifViews = catGifViews;
 			}
-			
-			if(!shouldDraw) {
-				iterate();
-				return;
-			}
-			
+
 			SurfaceHolder holder = getSurfaceHolder();
 			
 			Canvas c = null;
@@ -321,6 +334,32 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					if (mStopDrawingCats || isPreview()) {
 						iterate();
 						return;
+					} else if (isLoadingCats) {
+						mTextPaint.setColor(Color.BLACK);
+						mTextPaint.setStyle(Style.FILL);
+						c.drawPaint(mTextPaint);
+						mTextPaint.setColor(Color.WHITE);
+						mTextPaint.setTextSize(20);
+						c.drawText("Downloading all the cats...", 20, 200, mTextPaint);
+
+						if (mLoadingCatView == null) {
+							mLoadingCatView = new GifView(CatOverflowWallpaper.this);
+							mLoadingCatView.setGif(R.drawable.catloader);
+							mLoadingCatView.play();
+						} else {
+							mLoadingCatView.setDrawAtX((width / 2) - (mLoadingCatView.getBitmapWidth() / 2));
+							mLoadingCatView.setDrawAtY((height / 2) - (mLoadingCatView.getBitmapHeight() / 2));
+							mLoadingCatView.draw(c);
+						}
+
+						iterate();
+						return;
+					} else if (!isLoadingCats) {
+						if (mLoadingCatView != null) {
+							mLoadingCatView.stop();
+							mLoadingCatView.release();
+							mLoadingCatView = null;
+						}
 					}
 
 					int currentX = offset_x;
@@ -406,5 +445,10 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		 * Called when there are no more cats to retrieve from the server.
 		 */
 		public abstract void OnAdpoptionComplete();
+
+		/**
+		 * Called when a batch has completed.
+		 */
+		public abstract void OnBatchComplete();
 	}
 }
