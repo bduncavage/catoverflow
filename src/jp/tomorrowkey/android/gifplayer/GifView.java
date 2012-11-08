@@ -88,8 +88,10 @@ public class GifView extends View {
 			decodeStatus = DECODE_STATUS_UNDECODE;
 			playFlag = false;
 			bitmap = cacheImage;
-			width = bitmap.getWidth();
-			height = bitmap.getHeight();
+			if (bitmap != null) {
+				width = bitmap.getWidth();
+				height = bitmap.getHeight();
+			}
 		}
 		setLayoutParams(new LayoutParams(width, height));
 	}
@@ -118,8 +120,10 @@ public class GifView extends View {
 			decodeStatus = DECODE_STATUS_UNDECODE;
 			playFlag = false;
 			bitmap = cacheImage;
-			width = bitmap.getWidth();
-			height = bitmap.getHeight();
+			if (bitmap != null) {
+				width = bitmap.getWidth();
+				height = bitmap.getHeight();
+			}
 		}
 		setLayoutParams(new LayoutParams(width, height));
 	}
