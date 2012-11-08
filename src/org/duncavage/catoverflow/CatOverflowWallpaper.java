@@ -45,7 +45,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private Vector<String> recentlyNappedCats;
 	
 	private boolean transportComplete;
-	private final int CAT_PROCESSING_BATCH_SIZE = 10;
+	private final int CAT_PROCESSING_BATCH_SIZE = 1;
 
 	@Override
 	public void onCreate() {
@@ -76,19 +76,19 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 							Editor editor = settings.edit();
 							editor.putString(CAT_VERSION_KEY, cats.elementAt(0));
 							editor.commit();
-							engine.catTransportComplete();
+							engine.catTransportComplete(100);
 							transportComplete = true;
 						}
 
 						@Override
-						public void OnBatchComplete() {
+						public void OnBatchComplete(int progress) {
 							// we've got some cats so we can start to draw them
-							engine.catTransportComplete();
+							engine.catTransportComplete(progress);
 							transportComplete = true;
 						}
 					});
 				} else {
-					engine.catTransportComplete();
+					engine.catTransportComplete(100);
 					transportComplete = true;
 				}
 			}
@@ -109,7 +109,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		catAnimator = new CatAnimator(engine);
 		catAnimator.startAnimating();
 		if (transportComplete) {
-			engine.catTransportComplete();
+			engine.catTransportComplete(100);
 		}
 		return engine;
 	}
@@ -164,9 +164,17 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 	private void adpotCats(Vector<String> catsToAdopt, final OnNewCatsAdoptedListener listener) {
 		Enumeration<String> enumeratedCats = catsToAdopt.elements();
 		File catStore = new File(externalDirPath);
-
+		int catCount = 0;
+		
 		while(enumeratedCats.hasMoreElements()) {
 			CatTransporter.adoptCat(enumeratedCats.nextElement(), catStore);
+			catCount++;
+			if (catCount % CAT_PROCESSING_BATCH_SIZE == 0) {
+				Log.i(TAG, "Processed: " + catCount + " cats");
+				int foo = catsToAdopt.size();
+				float completed = (float)catCount / (float)catsToAdopt.size();
+				listener.OnBatchComplete((int)(completed * 100.0));
+			}
 		}
 		
 		main_thread_handler.post(new Runnable() {
@@ -197,12 +205,14 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 
 		private volatile boolean mStopDrawingCats = false;
 
-		private final int MAX_CATS_IN_MEMORY = 15;
+		private final int MAX_CATS_IN_MEMORY = 25;
 
 		private Bitmap mBackgroundBmp;
 		private GifView mLoadingCatView;
 
 		private Handler mMainThreadHandler;
+
+		private int currentDownloadProgress;
 
 		@Override
 		public void onCreate(SurfaceHolder holder) {
@@ -211,10 +221,17 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			setTouchEventsEnabled(true);
 		}
 		
-		public void catTransportComplete()
+		public void catTransportComplete(int progress)
 		{
 			File[] files = new File(CatOverflowWallpaper.this.externalDirPath).listFiles();
-			cats = new String[files.length];
+			synchronized(monitor) {
+				cats = new String[files.length];
+				currentDownloadProgress = progress;
+			}
+			
+			if (progress < 100) {
+				return;
+			}
 			
 			for(int i = 0; i < files.length; i++) {
 				cats[i] = files[i].getAbsolutePath();
@@ -258,7 +275,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						mStopDrawingCats = false;
 					}
 					mMainThreadHandler.post(new Runnable() {
-						@Override
 						public void run() {
 							animateRandomCat();
 						}
@@ -304,12 +320,14 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		@Override
 		protected void drawFrame() {
 			boolean isLoadingCats = false;
-
 			ArrayList<GifView> localGifViews = null;
+			int localDownloadProgress = 0;
+			
 			synchronized(monitor) {
-				if(catGifViews == null && !isPreview()) {
+				if((catGifViews == null || currentDownloadProgress != 100) && !isPreview()) {
 					isLoadingCats = true;
 				}
+				localDownloadProgress = currentDownloadProgress;
 				localGifViews = catGifViews;
 			}
 
@@ -339,16 +357,16 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						mTextPaint.setStyle(Style.FILL);
 						c.drawPaint(mTextPaint);
 						mTextPaint.setColor(Color.WHITE);
-						mTextPaint.setTextSize(20);
-						c.drawText("Downloading all the cats...", 20, 200, mTextPaint);
-
+						mTextPaint.setTextSize(40);
+						c.drawText("Downloading all the cats...", 40, 200, mTextPaint);
+						c.drawText(localDownloadProgress + "% complete", 40, 240, mTextPaint);
 						if (mLoadingCatView == null) {
 							mLoadingCatView = new GifView(CatOverflowWallpaper.this);
 							mLoadingCatView.setGif(R.drawable.catloader);
+							mLoadingCatView.setDrawAtX((width / 4) - (mLoadingCatView.getBitmapWidth() / 2));
+							mLoadingCatView.setDrawAtY((height / 2) - (mLoadingCatView.getBitmapHeight() / 2));
 							mLoadingCatView.play();
 						} else {
-							mLoadingCatView.setDrawAtX((width / 2) - (mLoadingCatView.getBitmapWidth() / 2));
-							mLoadingCatView.setDrawAtY((height / 2) - (mLoadingCatView.getBitmapHeight() / 2));
 							mLoadingCatView.draw(c);
 						}
 
@@ -384,7 +402,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 								currentY += rowMaxHeight;
 								rowMaxHeight = 0;
 								if(currentY > this.height) {
-									upperBoundIndex = i;
+									upperBoundIndex = upperBoundIndex <= i ? i : 0;
 									break;
 								}
 							}
@@ -449,6 +467,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 		/**
 		 * Called when a batch has completed.
 		 */
-		public abstract void OnBatchComplete();
+		public abstract void OnBatchComplete(int progress);
 	}
 }

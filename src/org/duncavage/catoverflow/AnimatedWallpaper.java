@@ -11,7 +11,6 @@ public abstract class AnimatedWallpaper extends WallpaperService {
 		private Handler handler = new Handler();
 
 		private Runnable iterator = new Runnable() {
-			@Override
 			public void run() {
 				drawFrame();
 			}

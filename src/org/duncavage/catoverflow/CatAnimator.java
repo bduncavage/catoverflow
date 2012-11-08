@@ -12,7 +12,7 @@ public class CatAnimator {
 	private int randomizeInterval = 5;
 	private int currentInterval = 0;
 
-	private final int MIN_TIME_BETWEEN_ANIMATION = 25;
+	private final int MIN_TIME_BETWEEN_ANIMATION = 50;
 	
 	public CatAnimator(CatOverflowWallpaper.CatOverflowEngine engine) {
 		this.engine = engine;

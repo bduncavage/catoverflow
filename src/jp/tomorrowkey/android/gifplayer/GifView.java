@@ -81,14 +81,16 @@ public class GifView extends View {
 	 * @param cacheImage
 	 */
 	public void setGif(String filePath, Bitmap cacheImage) {
-		this.resId = 0;
-		this.filePath = filePath;
-		imageType = IMAGE_TYPE_UNKNOWN;
-		decodeStatus = DECODE_STATUS_UNDECODE;
-		playFlag = false;
-		bitmap = cacheImage;
-		width = bitmap.getWidth();
-		height = bitmap.getHeight();
+		synchronized(this) {
+			this.resId = 0;
+			this.filePath = filePath;
+			imageType = IMAGE_TYPE_UNKNOWN;
+			decodeStatus = DECODE_STATUS_UNDECODE;
+			playFlag = false;
+			bitmap = cacheImage;
+			width = bitmap.getWidth();
+			height = bitmap.getHeight();
+		}
 		setLayoutParams(new LayoutParams(width, height));
 	}
 
@@ -109,14 +111,16 @@ public class GifView extends View {
 	 * @param cacheImage
 	 */
 	public void setGif(int resId, Bitmap cacheImage) {
-		this.filePath = null;
-		this.resId = resId;
-		imageType = IMAGE_TYPE_UNKNOWN;
-		decodeStatus = DECODE_STATUS_UNDECODE;
-		playFlag = false;
-		bitmap = cacheImage;
-		width = bitmap.getWidth();
-		height = bitmap.getHeight();
+		synchronized(this) {
+			this.filePath = null;
+			this.resId = resId;
+			imageType = IMAGE_TYPE_UNKNOWN;
+			decodeStatus = DECODE_STATUS_UNDECODE;
+			playFlag = false;
+			bitmap = cacheImage;
+			width = bitmap.getWidth();
+			height = bitmap.getHeight();
+		}
 		setLayoutParams(new LayoutParams(width, height));
 	}
 
