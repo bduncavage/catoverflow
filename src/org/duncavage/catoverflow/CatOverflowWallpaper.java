@@ -49,7 +49,6 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 
 	@Override
 	public void onCreate() {
-		android.os.Debug.waitForDebugger(); 
 		final SharedPreferences settings = getSharedPreferences(CAT_PREFS, 0);
 	    final String catVersion = settings.getString(CAT_VERSION_KEY, "");
 	    
