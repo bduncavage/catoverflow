@@ -33,7 +33,8 @@ public class CatAnimator {
 	
 	public void startAnimating()
 	{
-		catAnimatorHandle = scheduler.scheduleAtFixedRate(catAnimatorRunnable, 0, MIN_TIME_BETWEEN_ANIMATION, TimeUnit.SECONDS);
+		catAnimatorHandle = scheduler.scheduleAtFixedRate(catAnimatorRunnable, 
+				MIN_TIME_BETWEEN_ANIMATION, MIN_TIME_BETWEEN_ANIMATION, TimeUnit.SECONDS);
 	}
 	
 	public void stopAnimating() {

@@ -102,7 +102,7 @@ public class GifView extends View {
 	 * @param resId
 	 */
 	public void setGif(int resId) {
-		Bitmap bitmap = BitmapFactory.decodeResource(getResources(), resId);
+		Bitmap bitmap = BitmapFactory.decodeStream(getResources().openRawResource(resId));
 		setGif(resId, bitmap);
 	}
 
@@ -270,10 +270,18 @@ public class GifView extends View {
 		drawAtX = x;
 	}
 	
+	public int getDrawAtX() {
+		return drawAtX;
+	}
+
 	public void setDrawAtY(int y) {
 		drawAtY = y;
 	}
 	
+	public int getDrawAtY() {
+		return drawAtY;
+	}
+
 	public Bitmap getBitmap() {
 		return bitmap;
 	}

@@ -213,6 +213,8 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 
 		private int currentDownloadProgress;
 
+		private int mLastTouchAction = -1;
+
 		@Override
 		public void onCreate(SurfaceHolder holder) {
 			super.onCreate(holder);
@@ -256,6 +258,7 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 				public void run() {
 					GifView view = null;
 					String catFile = null;
+					Handler handler = null;
 
 					for(int i = 0; i < safeSize; i++) {
 						view = new GifView(context);
@@ -272,12 +275,16 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 					}
 					synchronized(monitor) {
 						mStopDrawingCats = false;
+						handler = mMainThreadHandler;
 					}
-					mMainThreadHandler.post(new Runnable() {
-						public void run() {
-							animateRandomCat();
-						}
-					});
+
+					if (handler != null) {
+						handler.post(new Runnable() {
+							public void run() {
+								animateRandomCat();
+							}
+						});
+					}
 				}
 			}.start();
 		}
@@ -356,9 +363,8 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						mTextPaint.setStyle(Style.FILL);
 						c.drawPaint(mTextPaint);
 						mTextPaint.setColor(Color.WHITE);
-						mTextPaint.setTextSize(40);
-						c.drawText("Downloading all the cats...", 40, 200, mTextPaint);
-						c.drawText(localDownloadProgress + "% complete", 40, 240, mTextPaint);
+						mTextPaint.setTextSize(35);
+
 						if (mLoadingCatView == null) {
 							mLoadingCatView = new GifView(CatOverflowWallpaper.this);
 							mLoadingCatView.setGif(R.drawable.catloader);
@@ -368,6 +374,15 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 						} else {
 							mLoadingCatView.draw(c);
 						}
+
+						c.drawText("Downloading all the cats...",
+								mLoadingCatView.getDrawAtX(),
+								mLoadingCatView.getDrawAtY() - 20,
+								mTextPaint);
+						c.drawText(localDownloadProgress + "% complete",
+								mLoadingCatView.getDrawAtX(),
+								mLoadingCatView.getDrawAtY() + mLoadingCatView.getBitmapHeight() + 20,
+								mTextPaint);
 
 						iterate();
 						return;
@@ -415,24 +430,75 @@ public class CatOverflowWallpaper extends AnimatedWallpaper {
 			}
 			iterate();
 		}
-		
+
 		@Override
 		public void onTouchEvent(MotionEvent event) {
 			super.onTouchEvent(event);
-			//catGifViews.get(0).play();
+			// we only want to process simple touch (down/up) events
+			// we need to disregard swiping
+			if (mLastTouchAction == -1) {
+				mLastTouchAction = event.getAction();
+				return;
+			} else {
+				if (event.getAction() == MotionEvent.ACTION_UP &&
+						mLastTouchAction == MotionEvent.ACTION_MOVE) {
+					mLastTouchAction = -1;
+					return;
+				} else if (event.getAction() != MotionEvent.ACTION_UP){
+					mLastTouchAction = event.getAction();
+					return;
+				}
+			}
+			// cancel the animator
+			CatOverflowWallpaper.this.catAnimator.stopAnimating();
+			// super simple hit detection
+			synchronized(monitor) {
+				if (catGifViews == null || catGifViews.size() < upperBoundIndex) {
+					return;
+				}
+
+				GifView view;
+				int minX = 0, maxX = 0, minY = 0, maxY = 0;
+				for(int i = 0; i < catGifViews.size(); i++) {
+					view = catGifViews.get(i);
+					minX = view.getDrawAtX();
+					maxX = minX + view.getBitmapWidth();
+					minY = view.getDrawAtY();
+					maxY = minY + view.getBitmapHeight();
+
+					if (event.getX() >= minX && event.getX() <= maxX &&
+							event.getY() >= minY && event.getY() <= maxY) {
+						animateCatAtIndex(i);
+						break;
+					}
+				}
+			}
+			// restart the animator
+			// ideally, we wouldn't restart it until the selected
+			// animation has completed at least once, but I'm
+			// not going to modify GifView/GifDecoder to notify
+			// of these things, not yet at least.
+			// But the default interval should be long enough to
+			// allow the animation to complete at least once.
+			CatOverflowWallpaper.this.catAnimator.startAnimating();
 		}
 
 		public void animateRandomCat() {
+			synchronized(monitor) {
+				animateCatAtIndex((int) (Math.random() * (upperBoundIndex + 1)));
+			}
+		}
+
+		private void animateCatAtIndex(int index) {
 			synchronized(monitor) {
 				if (catGifViews == null || catGifViews.size() < upperBoundIndex) {
 					return;
 				}
 				if (upperBoundIndex > 0) {
-					int randIndex = (int) (Math.random() * (upperBoundIndex + 1));
 					resetAnimatedCat();
-					Log.i(TAG, "Will animate cat at index: " + randIndex);
-					catGifViews.get(randIndex).play();
-					lastAnimatedIndex = randIndex;
+					Log.i(TAG, "Will animate cat at index: " + index);
+					catGifViews.get(index).play();
+					lastAnimatedIndex = index;
 				}
 			}
 		}
