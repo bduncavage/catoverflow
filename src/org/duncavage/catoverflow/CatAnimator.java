@@ -9,7 +9,7 @@ public class CatAnimator {
 	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 	private ScheduledFuture catAnimatorHandle;
 	private CatOverflowWallpaper.CatOverflowEngine engine;
-	private int randomizeInterval = 10;
+	private int randomizeInterval = 3;
 	private int currentInterval = 0;
 
 	private final int MIN_TIME_BETWEEN_ANIMATION = 50;
